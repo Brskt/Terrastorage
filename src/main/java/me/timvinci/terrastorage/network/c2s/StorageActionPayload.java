@@ -1,5 +1,7 @@
 package me.timvinci.terrastorage.network.c2s;
 
+import me.timvinci.terrastorage.integration.ExternalInventoryManager;
+import me.timvinci.terrastorage.integration.ExternalInventoryProvider;
 import me.timvinci.terrastorage.inventory.SlotBackedInventory;
 import me.timvinci.terrastorage.util.Reference;
 import me.timvinci.terrastorage.util.StorageAction;
@@ -23,12 +25,14 @@ import java.util.Optional;
  * @param action The action initiated.
  * @param hotbarProtection The hotbar protection value of the player.
  * @param smartDepositMode Whether the player's quick stack mode is 'smart deposit'.
+ * @param targetExternalInventory Whether the action targets an external inventory (e.g. backpack).
  */
 public record StorageActionPayload(
         Optional<Integer> syncId,
         StorageAction action,
         boolean hotbarProtection,
-        Optional<Boolean> smartDepositMode
+        Optional<Boolean> smartDepositMode,
+        boolean targetExternalInventory
 ) implements CustomPayload {
     public static final Id<StorageActionPayload> ID = new Id<>(Identifier.of(Reference.MOD_ID, "storage_action"));
     public static final PacketCodec<PacketByteBuf, StorageActionPayload> actionCodec = PacketCodec.of(
@@ -37,12 +41,14 @@ public record StorageActionPayload(
                 buf.writeEnumConstant(value.action);
                 buf.writeBoolean(value.hotbarProtection);
                 buf.writeOptional(value.smartDepositMode, PacketByteBuf::writeBoolean);
+                buf.writeBoolean(value.targetExternalInventory);
             },
             buf -> new StorageActionPayload(
                     buf.readOptional(PacketByteBuf::readInt),
                     buf.readEnumConstant(StorageAction.class),
                     buf.readBoolean(),
-                    buf.readOptional(PacketByteBuf::readBoolean)
+                    buf.readOptional(PacketByteBuf::readBoolean),
+                    buf.readBoolean()
             )
     );
     @Override
@@ -56,32 +62,47 @@ public record StorageActionPayload(
      * @param action The action initiated.
      * @param hotbarProtection The hotbar protection value of the player.
      * @param smartDepositMode Whether the player's quick stack mode is 'smart deposit'.
+     * @param targetExternalInventory Whether the action targets an external inventory.
      */
-    public static void receive(ServerPlayerEntity player, Optional<Integer> syncId, StorageAction action, boolean hotbarProtection, Optional<Boolean> smartDepositMode) {
+    public static void receive(ServerPlayerEntity player, Optional<Integer> syncId, StorageAction action, boolean hotbarProtection, Optional<Boolean> smartDepositMode, boolean targetExternalInventory) {
         if (action != StorageAction.QUICK_STACK_TO_NEARBY) {
             if (player.currentScreenHandler == null || player.currentScreenHandler.syncId != syncId.get()) {
                 return;
             }
 
             Inventory storageInventory;
-            Slot firstSlot = player.currentScreenHandler.slots.getFirst();
-            if (firstSlot.inventory.size() != 0) {
-                if (!firstSlot.canTakeItems(player)) {
-                    player.sendMessage(Text.translatable("terrastorage.message.restricted_inventory"));
+            Slot firstSlot;
+
+            // External inventory targeting (e.g. backpack): use the registered provider.
+            if (targetExternalInventory) {
+                ExternalInventoryProvider provider = ExternalInventoryManager.findProvider(player.currentScreenHandler);
+                if (provider == null) return;
+                storageInventory = provider.getInventory(player.currentScreenHandler);
+                if (storageInventory == null || storageInventory.size() == 0) {
                     return;
                 }
-
-                // Get the storage's inventory from the player's screen handler.
-                storageInventory = firstSlot.inventory;
+                firstSlot = provider.getSlots(player.currentScreenHandler).getFirst();
             }
-            else { // Handle "broken" screen handlers
-                List<Slot> nonPlayerSlots = player.currentScreenHandler.slots.stream()
-                        .filter(slot -> !(slot.inventory instanceof PlayerInventory))
-                        .toList();
+            else {
+                firstSlot = player.currentScreenHandler.slots.getFirst();
+                if (firstSlot.inventory.size() != 0) {
+                    if (!firstSlot.canTakeItems(player)) {
+                        player.sendMessage(Text.translatable("terrastorage.message.restricted_inventory"));
+                        return;
+                    }
 
-                // Create a SlotBackedInventory, which will hold a reference to all slots and will make inventory
-                // adjustments using them.
-                storageInventory = new SlotBackedInventory(nonPlayerSlots);
+                    // Get the storage's inventory from the player's screen handler.
+                    storageInventory = firstSlot.inventory;
+                }
+                else { // Handle "broken" screen handlers
+                    List<Slot> nonPlayerSlots = player.currentScreenHandler.slots.stream()
+                            .filter(slot -> !(slot.inventory instanceof PlayerInventory))
+                            .toList();
+
+                    // Create a SlotBackedInventory, which will hold a reference to all slots and will make inventory
+                    // adjustments using them.
+                    storageInventory = new SlotBackedInventory(nonPlayerSlots);
+                }
             }
 
             switch (action) {

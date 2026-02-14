@@ -5,6 +5,8 @@ import me.timvinci.terrastorage.config.ClientConfigManager;
 import me.timvinci.terrastorage.config.ServerConfigHolder;
 import me.timvinci.terrastorage.gui.TerrastorageOptionsScreen;
 import me.timvinci.terrastorage.gui.widget.StorageButtonCreator;
+import me.timvinci.terrastorage.integration.ExternalInventoryManager;
+import me.timvinci.terrastorage.integration.ExternalInventoryProvider;
 import me.timvinci.terrastorage.keybinding.TerrastorageKeybindings;
 import me.timvinci.terrastorage.network.ClientNetworkHandler;
 import me.timvinci.terrastorage.util.*;
@@ -18,6 +20,9 @@ import net.minecraft.client.gui.screen.ingame.CreativeInventoryScreen;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.client.gui.tooltip.Tooltip;
 import net.minecraft.client.gui.widget.ButtonWidget;
+import net.minecraft.client.gui.Click;
+import net.minecraft.client.input.KeyInput;
+import net.minecraft.client.input.MouseInput;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.ItemStack;
@@ -65,33 +70,44 @@ public abstract class HandledScreenMixin<T extends ScreenHandler> extends Screen
      */
     @Inject(method = "init", at = @At("TAIL"))
     private void onInit(CallbackInfo ci) {
-        // Return if the player is in spectator mode, or if the handled screen is that of the player's inventory.
+        // Return if the player is in spectator mode or in creative inventory.
         if (MinecraftClient.getInstance().player.isSpectator() ||
-            handler instanceof CreativeInventoryScreen.CreativeScreenHandler ||
-            handler instanceof PlayerScreenHandler) {
+            handler instanceof CreativeInventoryScreen.CreativeScreenHandler) {
             return;
         }
 
-        // Check if the handled screen is a storage.
-        // Primary check scans for a non player slot with an inventory size of at least 27.
-        // Secondary check counts the amount of non player slots and is for screen handlers whose slots list doesn't
-        // provide a proper reference to the inventory.
-        boolean largeNonPlayerInventory = false;
-        int nonPlayerSlotCount = 0;
-        for (Slot slot : handler.slots) {
-            if (!(slot.inventory instanceof PlayerInventory)) {
-                if (slot.inventory.size() >= 27) {
-                    largeNonPlayerInventory = true;
-                    break;
-                }
-
-                nonPlayerSlotCount++;
+        // External inventory detection: when viewing the player inventory, check if any
+        // registered external inventory provider (e.g. backpack mod) is available.
+        ExternalInventoryProvider externalProvider = null;
+        if (handler instanceof PlayerScreenHandler) {
+            externalProvider = ExternalInventoryManager.findProvider(handler);
+            if (externalProvider == null) {
+                return;
             }
         }
 
-        // If both checks fail, this is (most very likely) not a storage.
-        if (!largeNonPlayerInventory && nonPlayerSlotCount < 27) {
-            return;
+        if (externalProvider == null) {
+            // Check if the handled screen is a storage.
+            // Primary check scans for a non player slot with an inventory size of at least 27.
+            // Secondary check counts the amount of non player slots and is for screen handlers whose slots list doesn't
+            // provide a proper reference to the inventory.
+            boolean largeNonPlayerInventory = false;
+            int nonPlayerSlotCount = 0;
+            for (Slot slot : handler.slots) {
+                if (!(slot.inventory instanceof PlayerInventory)) {
+                    if (slot.inventory.size() >= 27) {
+                        largeNonPlayerInventory = true;
+                        break;
+                    }
+
+                    nonPlayerSlotCount++;
+                }
+            }
+
+            // If both checks fail, this is (most very likely) not a storage.
+            if (!largeNonPlayerInventory && nonPlayerSlotCount < 27) {
+                return;
+            }
         }
 
         // Add the options buttons if it is enabled.
@@ -117,8 +133,14 @@ public abstract class HandledScreenMixin<T extends ScreenHandler> extends Screen
             return;
         }
 
-        boolean isEnderChest = handler instanceof GenericContainerScreenHandler && this.getTitle().equals(Text.translatable("container.enderchest"));
-        StorageAction[] buttonActions = StorageAction.getButtonsActions(isEnderChest);
+        StorageAction[] buttonActions;
+        boolean targetExternalInventory = externalProvider != null;
+        if (targetExternalInventory) {
+            buttonActions = externalProvider.getSupportedActions();
+        } else {
+            boolean isEnderChest = handler instanceof GenericContainerScreenHandler && this.getTitle().equals(Text.translatable("container.enderchest"));
+            buttonActions = StorageAction.getButtonsActions(isEnderChest);
+        }
 
         ButtonsStyle buttonsStyle = ClientConfigManager.getInstance().getConfig().getButtonsStyle();
         // Set the buttons offset.
@@ -130,10 +152,14 @@ public abstract class HandledScreenMixin<T extends ScreenHandler> extends Screen
         int buttonsHeight = ClientConfigManager.getInstance().getConfig().getButtonsHeight();
         int buttonsSpacing = ClientConfigManager.getInstance().getConfig().getButtonsSpacing();
 
+        // Extra offset for mods that render expandable widgets beyond their backgroundWidth.
+        // Traveler's Backpack has settings tabs extending up to 48px past imageWidth - 3 (= 45px beyond backgroundWidth).
+        int modWidgetOffset = handler.getClass().getName().startsWith("com.tiviacz.travelersbackpack") ? 50 : 0;
+
         // Place the buttons on the side of the container gui.
         int buttonX = ClientConfigManager.getInstance().getConfig().getButtonsPlacement() == ButtonsPlacement.RIGHT?
-                this.x + this.backgroundWidth + 5 + buttonsXOffset :
-                this.x - ((buttonsStyle == ButtonsStyle.DEFAULT ? buttonsWidth : 70) + 5) + buttonsXOffset;
+                this.x + this.backgroundWidth + 5 + buttonsXOffset + modWidgetOffset :
+                this.x - ((buttonsStyle == ButtonsStyle.DEFAULT ? buttonsWidth : 70) + 5) + buttonsXOffset - modWidgetOffset;
         // Get the height of the container, excluding the player's inventory portion whose height is 94.
         int containerHeight = this.backgroundHeight - 94;
         int buttonSectionHeight = buttonActions.length * buttonsHeight + (buttonActions.length-1) * buttonsSpacing;
@@ -144,7 +170,7 @@ public abstract class HandledScreenMixin<T extends ScreenHandler> extends Screen
             for (StorageAction storageAction : buttonActions) {
                 Text buttonText = LocalizedTextProvider.buttonTextCache.get(storageAction);
                 Tooltip buttonTooltip = LocalizedTextProvider.buttonTooltipCache.get(storageAction);
-                StorageButtonWidget storageButton = StorageButtonCreator.createStorageButton(storageAction, buttonX, buttonY, buttonsWidth, buttonsHeight, buttonText, buttonsStyle);
+                StorageButtonWidget storageButton = StorageButtonCreator.createStorageButton(storageAction, buttonX, buttonY, buttonsWidth, buttonsHeight, buttonText, buttonsStyle, targetExternalInventory);
                 storageButton.setTooltip(buttonTooltip);
 
                 this.addDrawableChild(storageButton);
@@ -154,7 +180,7 @@ public abstract class HandledScreenMixin<T extends ScreenHandler> extends Screen
         else {
             for (StorageAction storageAction : buttonActions) {
                 Text buttonText = LocalizedTextProvider.buttonTextCache.get(storageAction);
-                StorageButtonWidget storageButton = StorageButtonCreator.createStorageButton(storageAction, buttonX, buttonY, buttonsWidth, buttonsHeight, buttonText, buttonsStyle);
+                StorageButtonWidget storageButton = StorageButtonCreator.createStorageButton(storageAction, buttonX, buttonY, buttonsWidth, buttonsHeight, buttonText, buttonsStyle, targetExternalInventory);
 
                 this.addDrawableChild(storageButton);
                 buttonY += buttonsHeight + buttonsSpacing;
@@ -164,27 +190,25 @@ public abstract class HandledScreenMixin<T extends ScreenHandler> extends Screen
 
     /**
      * Provides the ability to favorite items stacks.
+     * Injected at HEAD since Util.getMeasuringTimeMs() is no longer called in mouseClicked as of 1.21.11.
+     * Uses focusedSlot (set during rendering) instead of capturing the slot local variable.
      */
-    @Inject(method = "mouseClicked",
-            at = @At(
-                    value = "INVOKE",
-                    target = "Lnet/minecraft/util/Util;getMeasuringTimeMs()J"),
-            locals = LocalCapture.CAPTURE_FAILEXCEPTION, cancellable = true)
-    private void mouseClicked(double mouseX, double mouseY, int button, CallbackInfoReturnable<Boolean> cir, boolean bl, Slot slot) {
-        if (button != 0 || slot == null || !slot.hasStack() || !handler.getCursorStack().isEmpty()) {
+    @Inject(method = "mouseClicked", at = @At("HEAD"), cancellable = true)
+    private void mouseClicked(Click click, boolean bl2, CallbackInfoReturnable<Boolean> cir) {
+        if (click.button() != 0 || focusedSlot == null || !focusedSlot.hasStack() || !handler.getCursorStack().isEmpty()) {
             return;
         }
 
-        boolean modifierIsPressed = InputUtil.isKeyPressed(client.getWindow().getHandle(), KeyBindingHelper.getBoundKeyOf(TerrastorageKeybindings.favoriteItemModifier).getCode());
-        boolean playerOwnedSlot = slot.inventory instanceof PlayerInventory;
+        boolean modifierIsPressed = InputUtil.isKeyPressed(client.getWindow(), KeyBindingHelper.getBoundKeyOf(TerrastorageKeybindings.favoriteItemModifier).getCode());
+        boolean playerOwnedSlot = focusedSlot.inventory instanceof PlayerInventory;
 
         if (modifierIsPressed && playerOwnedSlot) {
             if (!ServerConfigHolder.enableItemFavoriting) {
                 client.player.sendMessage(Text.translatable("terrastorage.message.item_favoriting_disabled"), false);
             }
             else {
-                ItemStack slotStack = slot.getStack();
-                int slotId = this.handler instanceof CreativeInventoryScreen.CreativeScreenHandler ? slot.getIndex() : slot.id;
+                ItemStack slotStack = focusedSlot.getStack();
+                int slotId = this.handler instanceof CreativeInventoryScreen.CreativeScreenHandler ? focusedSlot.getIndex() : focusedSlot.id;
                 boolean toggledValue = !ItemFavoritingUtils.isFavorite(slotStack);
                 if (ClientNetworkHandler.sendItemFavoritedPayload(slotId, toggledValue)) {
                     ItemFavoritingUtils.setFavorite(slotStack, toggledValue);
@@ -201,12 +225,12 @@ public abstract class HandledScreenMixin<T extends ScreenHandler> extends Screen
      * Injected at TAIL to allow any other logic related to the same keybind to happen before the sorting.
      */
     @Inject(method = "mouseClicked", at = @At("TAIL"), locals = LocalCapture.CAPTURE_FAILEXCEPTION)
-    private void mouseClickedTail(double mouseX, double mouseY, int button, CallbackInfoReturnable<Boolean> cir, boolean bl, Slot slot) {
+    private void mouseClickedTail(Click click, boolean bl2, CallbackInfoReturnable<Boolean> cir, boolean bl, Slot slot) {
         if (slot == null || slot.inventory.size() < 27) {
             return;
         }
 
-        if (TerrastorageKeybindings.sortInventoryBind.matchesMouse(button)) {
+        if (TerrastorageKeybindings.sortInventoryBind.matchesMouse(click)) {
             ClientNetworkHandler.sendSortPayload(slot.inventory instanceof PlayerInventory);
         }
     }
@@ -224,12 +248,12 @@ public abstract class HandledScreenMixin<T extends ScreenHandler> extends Screen
      * Injected at TAIL to allow any other logic related to the same keybind to happen before the sorting.
      */
     @Inject(method = "keyPressed", at = @At("TAIL"))
-    private void onKeyPressed(int keyCode, int scanCode, int modifiers, CallbackInfoReturnable<Boolean> cir) {
+    private void onKeyPressed(KeyInput keyInput, CallbackInfoReturnable<Boolean> cir) {
         if (focusedSlot == null || focusedSlot.inventory.size() < 27) {
             return;
         }
 
-        if (TerrastorageKeybindings.sortInventoryBind.matchesKey(keyCode, scanCode)) {
+        if (TerrastorageKeybindings.sortInventoryBind.matchesKey(keyInput)) {
             ClientNetworkHandler.sendSortPayload(focusedSlot.inventory instanceof PlayerInventory);
         }
     }
@@ -243,7 +267,7 @@ public abstract class HandledScreenMixin<T extends ScreenHandler> extends Screen
                     target = "Lnet/minecraft/client/gui/DrawContext;drawStackOverlay(Lnet/minecraft/client/font/TextRenderer;Lnet/minecraft/item/ItemStack;IILjava/lang/String;)V",
                     shift = At.Shift.BEFORE),
             locals = LocalCapture.CAPTURE_FAILEXCEPTION)
-    private void drawSlot(DrawContext context, Slot slot, CallbackInfo ci, int i, int j, ItemStack itemStack) {
+    private void drawSlot(DrawContext context, Slot slot, int mouseX, int mouseY, CallbackInfo ci, int i, int j, ItemStack itemStack) {
         if (!(slot.inventory instanceof PlayerInventory) || !ItemFavoritingUtils.isFavorite(itemStack)) {
             return;
         }
@@ -255,7 +279,7 @@ public abstract class HandledScreenMixin<T extends ScreenHandler> extends Screen
 
         boolean needsModifierPressed = borderVisibility == BorderVisibility.ON_PRESS || borderVisibility == BorderVisibility.ON_PRESS_NON_HOTBAR;
 
-        if (!needsModifierPressed || InputUtil.isKeyPressed(client.getWindow().getHandle(),
+        if (!needsModifierPressed || InputUtil.isKeyPressed(client.getWindow(),
                 KeyBindingHelper.getBoundKeyOf(TerrastorageKeybindings.favoriteItemModifier).getCode())) {
             context.drawTexture(RenderPipelines.GUI_TEXTURED, favoriteBorder, i, j, 0, 0, 16, 16, 16, 16);
         }

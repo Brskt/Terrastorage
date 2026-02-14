@@ -2,6 +2,8 @@ package me.timvinci.terrastorage;
 
 import me.timvinci.terrastorage.command.TerrastorageCommands;
 import me.timvinci.terrastorage.config.ConfigManager;
+import me.timvinci.terrastorage.integration.BlankpackCompat;
+import me.timvinci.terrastorage.integration.ExternalInventoryManager;
 import me.timvinci.terrastorage.inventory.InventoryUtils;
 import me.timvinci.terrastorage.network.NetworkHandler;
 import me.timvinci.terrastorage.network.PayloadRegistry;
@@ -39,6 +41,10 @@ public class Terrastorage implements ModInitializer {
 
 		if (FabricLoader.getInstance().isModLoaded("expandedstorage")) {
 			InventoryUtils.expandedStorageLoaded = true;
+		}
+
+		if (FabricLoader.getInstance().isModLoaded("yyzsbackpack")) {
+			ExternalInventoryManager.register(new BlankpackCompat());
 		}
 
 		ConfigManager.init();

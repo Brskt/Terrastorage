@@ -33,17 +33,29 @@ public class StorageButtonCreator {
      * @return A custom button with the aforementioned properties.
      */
     public static StorageButtonWidget createStorageButton(StorageAction action, int x, int y, int width, int height, Text buttonText, ButtonsStyle buttonStyle) {
-        ButtonWidget.PressAction onPress = switch (action) {
-            case SORT_ITEMS -> button -> ClientNetworkHandler.sendSortPayload(false);
-            case RENAME -> button -> {
-                MinecraftClient client = MinecraftClient.getInstance();
-                String name = client.currentScreen.getTitle().getString();
-                client.execute(() -> {
-                    client.setScreen(new RenameScreen(client.currentScreen, name));
-                });
+        return createStorageButton(action, x, y, width, height, buttonText, buttonStyle, false);
+    }
+
+    public static StorageButtonWidget createStorageButton(StorageAction action, int x, int y, int width, int height, Text buttonText, ButtonsStyle buttonStyle, boolean targetExternalInventory) {
+        ButtonWidget.PressAction onPress;
+        if (targetExternalInventory) {
+            onPress = switch (action) {
+                case SORT_ITEMS -> button -> ClientNetworkHandler.sendExternalInventorySortPayload();
+                default -> button -> ClientNetworkHandler.sendExternalInventoryActionPayload(action);
             };
-            default -> button -> ClientNetworkHandler.sendActionPayload(action);
-        };
+        } else {
+            onPress = switch (action) {
+                case SORT_ITEMS -> button -> ClientNetworkHandler.sendSortPayload(false);
+                case RENAME -> button -> {
+                    MinecraftClient client = MinecraftClient.getInstance();
+                    String name = client.currentScreen.getTitle().getString();
+                    client.execute(() -> {
+                        client.setScreen(new RenameScreen(client.currentScreen, name));
+                    });
+                };
+                default -> button -> ClientNetworkHandler.sendActionPayload(action);
+            };
+        }
 
         if (buttonStyle == ButtonsStyle.TEXT_ONLY) {
             width = MinecraftClient.getInstance().textRenderer.getWidth(buttonText) + 6;

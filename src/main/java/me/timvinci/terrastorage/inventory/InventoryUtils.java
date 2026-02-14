@@ -1,7 +1,6 @@
 package me.timvinci.terrastorage.inventory;
 
-import compasses.expandedstorage.api.EsChestType;
-import compasses.expandedstorage.api.ExpandedStorageAccessors;
+import me.timvinci.terrastorage.integration.ExpandedStorageCompat;
 import me.timvinci.terrastorage.config.ConfigManager;
 import me.timvinci.terrastorage.item.GhostItemEntity;
 import me.timvinci.terrastorage.item.StackIdentifier;
@@ -190,7 +189,7 @@ public class InventoryUtils {
      * @return A list consisting of pairs of inventories and their position.
      */
     public static List<Pair<Inventory, Vec3d>> getNearbyStorages(ServerPlayerEntity player) {
-        World world = player.getWorld();
+        World world = player.getEntityWorld();
         List<Pair<Inventory, Vec3d>> nearbyStorages = new ArrayList<>();
         Set<BlockPos> processedChests = new HashSet<>();
 
@@ -245,21 +244,15 @@ public class InventoryUtils {
                     processedChests.add(neighboringChestPos);
                 }
                 else if (expandedStorageLoaded) {
-                    Optional<EsChestType> chestType = ExpandedStorageAccessors.getChestType(state);
-                    if (chestType.isEmpty() || chestType.get() == EsChestType.SINGLE) {
-                        nearbyStorages.add(new Pair<>(inventory, losPoint));
-                        return;
+                    Pair<Inventory, Vec3d> esResult = ExpandedStorageCompat.handleExpandedStorageChest(world, state, pos, losPoint);
+                    if (esResult != null) {
+                        nearbyStorages.add(esResult);
+                        // Mark the neighboring chest as processed to avoid duplicates.
+                        processedChests.add(pos);
                     }
-
-                    BlockPos neighboringChestPos = pos.offset(ExpandedStorageAccessors.getAttachedChestDirection(state).get());
-                    Vec3d doubleChestLosPoint = getDoubleChestCenter(losPoint, neighboringChestPos.toCenterPos());
-                    Inventory neighboringChestInventory = (Inventory) world.getBlockEntity(neighboringChestPos);
-
-                    DoubleInventory doubleInventory = chestType.get() == EsChestType.RIGHT ?
-                            new DoubleInventory(inventory, neighboringChestInventory) :
-                            new DoubleInventory(neighboringChestInventory, inventory);
-                    nearbyStorages.add(new Pair<>(doubleInventory, doubleChestLosPoint));
-                    processedChests.add(neighboringChestPos);
+                    else {
+                        nearbyStorages.add(new Pair<>(inventory, losPoint));
+                    }
                 }
                 else {
                     nearbyStorages.add(new Pair<>(inventory, losPoint));

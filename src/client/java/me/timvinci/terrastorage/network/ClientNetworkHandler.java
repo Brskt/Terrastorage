@@ -33,19 +33,22 @@ public class ClientNetworkHandler {
                         Optional.of(getSyncId()),
                         action,
                         ClientConfigManager.getInstance().getConfig().getHotbarProtection(),
-                        Optional.of(ClientConfigManager.getInstance().getConfig().getStorageQuickStackMode() == QuickStackMode.SMART_DEPOSIT)
+                        Optional.of(ClientConfigManager.getInstance().getConfig().getStorageQuickStackMode() == QuickStackMode.SMART_DEPOSIT),
+                        false
                 );
                 case QUICK_STACK_TO_NEARBY -> new StorageActionPayload(
                         Optional.empty(),
                         action,
                         ClientConfigManager.getInstance().getConfig().getHotbarProtection(),
-                        Optional.of(ClientConfigManager.getInstance().getConfig().getNearbyQuickStackMode() == QuickStackMode.SMART_DEPOSIT)
+                        Optional.of(ClientConfigManager.getInstance().getConfig().getNearbyQuickStackMode() == QuickStackMode.SMART_DEPOSIT),
+                        false
                 );
                 default -> new StorageActionPayload(
                         Optional.of(getSyncId()),
                         action,
                         ClientConfigManager.getInstance().getConfig().getHotbarProtection(),
-                        Optional.empty()
+                        Optional.empty(),
+                        false
                 );
             };
 
@@ -67,13 +70,64 @@ public class ClientNetworkHandler {
                     new SortPayload(
                             Optional.empty(),
                             ClientConfigManager.getInstance().getConfig().getSortType(),
-                            Optional.of(ClientConfigManager.getInstance().getConfig().getHotbarProtection())
+                            Optional.of(ClientConfigManager.getInstance().getConfig().getHotbarProtection()),
+                            false
                     ) :
                     new SortPayload(
                             Optional.of(getSyncId()),
                             ClientConfigManager.getInstance().getConfig().getSortType(),
-                            Optional.empty()
+                            Optional.empty(),
+                            false
                     );
+
+            ClientPlayNetworking.send(payload);
+        } else {
+            LocalizedTextProvider.sendCooldownMessage();
+        }
+    }
+
+    public static void sendExternalInventoryActionPayload(StorageAction action) {
+        if (!canSendPayload(StorageActionPayload.ID) || MinecraftClient.getInstance().player.currentScreenHandler == null) {
+            return;
+        }
+
+        if (canPerformAction()) {
+            StorageActionPayload payload = switch (action) {
+                case QUICK_STACK -> new StorageActionPayload(
+                        Optional.of(getSyncId()),
+                        action,
+                        ClientConfigManager.getInstance().getConfig().getHotbarProtection(),
+                        Optional.of(ClientConfigManager.getInstance().getConfig().getStorageQuickStackMode() == QuickStackMode.SMART_DEPOSIT),
+                        true
+                );
+                default -> new StorageActionPayload(
+                        Optional.of(getSyncId()),
+                        action,
+                        ClientConfigManager.getInstance().getConfig().getHotbarProtection(),
+                        Optional.empty(),
+                        true
+                );
+            };
+
+            ClientPlayNetworking.send(payload);
+        }
+        else {
+            LocalizedTextProvider.sendCooldownMessage();
+        }
+    }
+
+    public static void sendExternalInventorySortPayload() {
+        if (!canSendPayload(SortPayload.ID) || MinecraftClient.getInstance().player.currentScreenHandler == null) {
+            return;
+        }
+
+        if (canPerformAction()) {
+            SortPayload payload = new SortPayload(
+                    Optional.of(getSyncId()),
+                    ClientConfigManager.getInstance().getConfig().getSortType(),
+                    Optional.empty(),
+                    true
+            );
 
             ClientPlayNetworking.send(payload);
         } else {
