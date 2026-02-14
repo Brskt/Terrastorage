@@ -13,6 +13,7 @@
 		"InventoryScreenMixin",
 		"ItemStackMixin",
 		"PressableWidgetAccessor",
+		"PressableWidgetMixin",
 		"SliderWidgetAccessor"
 	],
 	"injectors": {
