@@ -1,22 +1,28 @@
 package me.timvinci.terrastorage.render;
 
 import net.minecraft.block.entity.LootableContainerBlockEntity;
-import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.block.entity.BlockEntityRenderer;
 import net.minecraft.client.render.block.entity.BlockEntityRendererFactory;
+import net.minecraft.client.render.block.entity.state.BlockEntityRenderState;
+import net.minecraft.client.render.command.OrderedRenderCommandQueue;
+import net.minecraft.client.render.state.CameraRenderState;
 import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.math.Vec3d;
 
 /**
  * An empty custom block entity renderer.
- * Any block entity that has this renderer registered to it, will then be passed to the BlockEntityRenderDispatcher for
+ * Any block entity that has this renderer registered to it, will then be passed to the BlockEntityRenderManager for
  * rendering, which will in turn render the nametag for the block entity.
  */
-public class BlockNametagRenderer implements BlockEntityRenderer<LootableContainerBlockEntity> {
+public class BlockNametagRenderer implements BlockEntityRenderer<LootableContainerBlockEntity, BlockEntityRenderState> {
 
     public BlockNametagRenderer(BlockEntityRendererFactory.Context ctx) {}
 
     @Override
-    public void render(LootableContainerBlockEntity entity, float tickProgress, MatrixStack matrices, VertexConsumerProvider vertexConsumers, int light, int overlay, Vec3d cameraPos) {
+    public BlockEntityRenderState createRenderState() {
+        return new BlockEntityRenderState();
+    }
+
+    @Override
+    public void render(BlockEntityRenderState state, MatrixStack matrices, OrderedRenderCommandQueue queue, CameraRenderState cameraState) {
     }
 }
