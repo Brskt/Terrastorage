@@ -45,7 +45,7 @@ public class CompactInventoryState implements InventoryState {
      * @param hotbarProtection The hotbar protection value of the player.
      */
     public CompactInventoryState(PlayerInventory playerInventory, boolean hotbarProtection) {
-        for (int i = PlayerInventory.getHotbarSize(); i < playerInventory.getMainStacks().size(); i++) {
+        for (int i = PlayerInventory.getHotbarSize(); i < PlayerInventory.MAIN_SIZE; i++) {
             ItemStack playerStack = playerInventory.getStack(i);
             if (playerStack.isEmpty() || playerStack.getCount() == playerStack.getMaxCount()) {
                 continue;

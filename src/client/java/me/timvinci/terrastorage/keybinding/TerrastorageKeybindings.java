@@ -3,6 +3,7 @@ package me.timvinci.terrastorage.keybinding;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
+import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 
 /**
@@ -12,12 +13,14 @@ public class TerrastorageKeybindings {
     public static KeyBinding favoriteItemModifier;
     public static KeyBinding sortInventoryBind;
 
+    private static final KeyBinding.Category MAIN_CATEGORY = KeyBinding.Category.create(Identifier.of("terrastorage", "main"));
+
     public static void registerKeybindings() {
         favoriteItemModifier = new KeyBinding(
             "terrastorage.keybinding.favorite_item_modifier",
                 InputUtil.Type.KEYSYM,
                 GLFW.GLFW_KEY_LEFT_ALT,
-                "terrastorage.keybinding.categories.main"
+                MAIN_CATEGORY
         );
 
         KeyBindingHelper.registerKeyBinding(favoriteItemModifier);
@@ -26,7 +29,7 @@ public class TerrastorageKeybindings {
                 "terrastorage.keybinding.sort_inventory_bind",
                 InputUtil.Type.KEYSYM,
                 GLFW.GLFW_KEY_R,
-                "terrastorage.keybinding.categories.main"
+                MAIN_CATEGORY
         );
 
         KeyBindingHelper.registerKeyBinding(sortInventoryBind);

@@ -18,5 +18,6 @@ public enum StorageAction {
         StorageAction[] allActions = values();
         return Arrays.copyOf(allActions, allActions.length - (isEnderChest ? 2 : 1));
     }
+
 }
 

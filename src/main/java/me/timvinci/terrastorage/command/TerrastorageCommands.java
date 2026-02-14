@@ -30,7 +30,7 @@ public class TerrastorageCommands {
         TerrastorageConfig config = ConfigManager.getInstance().getConfig();
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
             LiteralArgumentBuilder<ServerCommandSource> command = CommandManager.literal(Reference.MOD_ID)
-                .requires(source -> source.hasPermissionLevel(2))
+                .requires(CommandManager.requirePermissionLevel(CommandManager.GAMEMASTERS_CHECK))
                 .then(CommandManager.literal("action-cooldown")
                     .executes(context -> executeGetValue(context, config::getActionCooldown, "Action Cooldown", " ticks"))
                     .then(CommandManager.argument("value", IntegerArgumentType.integer(0, 100))

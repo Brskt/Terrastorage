@@ -67,7 +67,7 @@ public class TerrastorageCore {
         // Create an inventory state from the storage's inventory.
         CompleteInventoryState storageInventoryState = new CompleteInventoryState(storageInventory);
 
-        for (int i = PlayerInventory.getHotbarSize(); i < playerInventory.getMainStacks().size(); i++) {
+        for (int i = PlayerInventory.getHotbarSize(); i < PlayerInventory.MAIN_SIZE; i++) {
             ItemStack playerStack = playerInventory.getStack(i);
             if (playerStack.isEmpty() || ItemFavoritingUtils.isFavorite(playerStack) || !firstSlot.canInsert(playerStack)) {
                 continue;
@@ -109,7 +109,7 @@ public class TerrastorageCore {
         StackProcessor processor = InventoryUtils.createStackProcessor(storageInventoryState, storageInventory, smartDepositMode);
 
         int startIndex = hotbarProtection ? PlayerInventory.getHotbarSize() : 0;
-        for (int i = startIndex; i < playerInventory.getMainStacks().size(); i++) {
+        for (int i = startIndex; i < PlayerInventory.MAIN_SIZE; i++) {
             processor.tryProcess(playerInventory.getStack(i));
         }
 
@@ -197,9 +197,9 @@ public class TerrastorageCore {
                 firstPart.markDirty();
                 secondPart.markDirty();
 
-                NetworkHandler.sendGlobalBlockRenamedPayload(player.getWorld(), firstPart.getPos(), newCustomName == null ? "" : newCustomName.getString());
-                NetworkHandler.sendGlobalBlockRenamedPayload(player.getWorld(), secondPart.getPos(), newCustomName == null ? "" : newCustomName.getString());
-                factory = firstPart.getCachedState().createScreenHandlerFactory(player.getWorld(), firstPart.getPos());
+                NetworkHandler.sendGlobalBlockRenamedPayload(player.getEntityWorld(), firstPart.getPos(), newCustomName == null ? "" : newCustomName.getString());
+                NetworkHandler.sendGlobalBlockRenamedPayload(player.getEntityWorld(), secondPart.getPos(), newCustomName == null ? "" : newCustomName.getString());
+                factory = firstPart.getCachedState().createScreenHandlerFactory(player.getEntityWorld(), firstPart.getPos());
             }
             else {
                 player.sendMessage(Text.literal("The storage you tried to rename is currently unsupported by Terrastorage."));
@@ -216,8 +216,8 @@ public class TerrastorageCore {
             accessor.setCustomName(newCustomName);
             lockableContainerBlockEntity.markDirty();
 
-            NetworkHandler.sendGlobalBlockRenamedPayload(player.getWorld(), lockableContainerBlockEntity.getPos(), newCustomName == null ? "" : newCustomName.getString());
-            factory = lockableContainerBlockEntity.getCachedState().createScreenHandlerFactory(player.getWorld(), lockableContainerBlockEntity.getPos());
+            NetworkHandler.sendGlobalBlockRenamedPayload(player.getEntityWorld(), lockableContainerBlockEntity.getPos(), newCustomName == null ? "" : newCustomName.getString());
+            factory = lockableContainerBlockEntity.getCachedState().createScreenHandlerFactory(player.getEntityWorld(), lockableContainerBlockEntity.getPos());
         }
         else {
             player.sendMessage(Text.literal("The storage you tried to rename is currently unsupported by Terrastorage."));
@@ -237,7 +237,7 @@ public class TerrastorageCore {
     public static void sortPlayerItems(PlayerInventory playerInventory, SortType type, boolean hotbarProtection) {
         List<ItemStack> sortedList = InventoryUtils.combineAndSortInventory(playerInventory, type,
                 hotbarProtection ? PlayerInventory.getHotbarSize() : 0,
-                playerInventory.getMainStacks().size(), true);
+                PlayerInventory.MAIN_SIZE, true);
         ArrayDeque<ItemStack> sortedStacks = new ArrayDeque<>(sortedList);
 
         int slotIndex = PlayerInventory.getHotbarSize();
@@ -287,7 +287,7 @@ public class TerrastorageCore {
             InventoryState storageState = stateFactory.apply(storage);
             StackProcessor processor = InventoryUtils.createStackProcessor(storageState, storage, smartDepositMode);
 
-            for (int i = startIndex; i < playerInventory.getMainStacks().size(); i++) {
+            for (int i = startIndex; i < PlayerInventory.MAIN_SIZE; i++) {
                 ItemStack playerStack = playerInventory.getStack(i);
                 Item playerItem = playerStack.getItem();
                 if (processor.tryProcess(playerStack)) {
@@ -308,7 +308,7 @@ public class TerrastorageCore {
 
         int itemAnimationLength = ConfigManager.getInstance().getConfig().getItemAnimationLength();
         if (itemAnimationLength != 0) {
-            InventoryUtils.triggerFlyOutAnimation(player.getWorld(), player.getEyePos(), itemAnimationLength, animationMap);
+            InventoryUtils.triggerFlyOutAnimation(player.getEntityWorld(), player.getEyePos(), itemAnimationLength, animationMap);
         }
     }
 }
